@@ -1,6 +1,6 @@
 # Imports
 print("Gesture Controller is running...")
-
+import time
 import cv2
 import mediapipe as mp
 import pyautogui
@@ -13,14 +13,39 @@ from google.protobuf.json_format import MessageToDict
 # import screen_brightness_control as sbcontrol
 import sys
 import os
+import subprocess
+from Quartz import CGEventCreateMouseEvent, CGEventPost, kCGHIDEventTap
+from Quartz.CoreGraphics import (
+    kCGEventLeftMouseDown,
+    kCGEventLeftMouseDragged,
+    kCGEventLeftMouseUp,
+    kCGMouseButtonLeft,
+)
+from Quartz.CoreGraphics import (
+    kCGEventLeftMouseDown,
+    kCGEventLeftMouseUp,
+    kCGEventMouseMoved,
+    kCGEventLeftMouseDragged,
+    kCGMouseButtonLeft,
+    kCGEventNull,
+)
+from Quartz import CGEventCreateMouseEvent, CGEventPost, kCGHIDEventTap
+from AppKit import NSWorkspace
+
+
+
+
+
 
 if sys.platform == "win32" or sys.platform == "linux":
     import screen_brightness_control as sbcontrol
 elif sys.platform == "darwin":
-    def set_brightness_mac(level):
-        os.system(f"osascript -e 'tell application \"System Events\" to set value of property list item \"brightness\" of property list file \"~/Library/Preferences/com.apple.controlcenter.plist\" to {level}'")
-
-
+    # MacOS brightness control using 'brightness' utility
+    def change_brightness_mac(level):
+        subprocess.run(["brightness", str(level)])
+    level = 0.5
+    change_brightness_mac(level)
+    
 
 pyautogui.FAILSAFE = False
 mp_drawing = mp.solutions.drawing_utils
@@ -302,34 +327,72 @@ class Controller:
         dist = round((hand_result.landmark[8].x - Controller.pinchstartxcoord)*10,1)
         return dist
     
-    def changesystembrightness():
-        """sets system brightness based on 'Controller.pinchlv'."""
-        currentBrightnessLv = sbcontrol.get_brightness(display=0)/100.0
-        currentBrightnessLv += Controller.pinchlv/50.0
-        if currentBrightnessLv > 1.0:
-            currentBrightnessLv = 1.0
-        elif currentBrightnessLv < 0.0:
-            currentBrightnessLv = 0.0       
-        sbcontrol.fade_brightness(int(100*currentBrightnessLv) , start = sbcontrol.get_brightness(display=0))
-    
-    def changesystemvolume():
-        """sets system volume based on 'Controller.pinchlv'."""
-        devices = AudioUtilities.GetSpeakers()
-        interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
-        volume = cast(interface, POINTER(IAudioEndpointVolume))
-        currentVolumeLv = volume.GetMasterVolumeLevelScalar()
-        currentVolumeLv += Controller.pinchlv/50.0
-        if currentVolumeLv > 1.0:
-            currentVolumeLv = 1.0
-        elif currentVolumeLv < 0.0:
-            currentVolumeLv = 0.0
-        volume.SetMasterVolumeLevelScalar(currentVolumeLv, None)
-    
-    def scrollVertical():
-        """scrolls on screen vertically."""
-        pyautogui.scroll(120 if Controller.pinchlv>0.0 else -120)
+
+    @staticmethod
+    def changesystembrightness(direction="up"):
+        try:
+            if direction == "up":
+                # Simulate pressing F2 (brightness up)
+                os.system("osascript -e 'tell application \"System Events\" to key code 144'")
+                print("[System] Brightness increased")
+            elif direction == "down":
+                # Simulate pressing F1 (brightness down)
+                os.system("osascript -e 'tell application \"System Events\" to key code 145'")
+                print("[System] Brightness decreased")
+        except Exception as e:
+            print(f"[Brightness Error] {e}")
+
         
-    
+    def mac_mouse_drag(x, y):
+        # Mouse down at (x, y)
+        event = CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, (x, y), kCGMouseButtonLeft)
+        CGEventPost(kCGHIDEventTap, event)
+
+        # Mouse dragged to (x, y)
+        drag_event = CGEventCreateMouseEvent(None, kCGEventLeftMouseDragged, (x, y), kCGMouseButtonLeft)
+        CGEventPost(kCGHIDEventTap, drag_event)
+
+    @staticmethod
+    def changesystemvolume(horizontal_direction="right"):
+        try:
+            if horizontal_direction == "right":
+                # Increase volume
+                os.system("osascript -e 'set volume output volume ((output volume of (get volume settings)) + 10)'")
+                print("[System] Volume increased")
+            elif horizontal_direction == "left":
+                # Decrease volume
+                os.system("osascript -e 'set volume output volume ((output volume of (get volume settings)) - 10)'")
+                print("[System] Volume decreased")
+            else:
+                print("[System] No volume change - unknown direction")
+        except Exception as e:
+            print(f"[Volume Error] {e}")
+
+        
+    @staticmethod
+    def mac_open_selected_finder_item():
+        script = '''
+        tell application "Finder"
+            set selectedItems to selection
+            if (count of selectedItems) > 0 then
+                set theItem to item 1 of selectedItems
+                set thePath to POSIX path of (theItem as alias)
+                return thePath
+            end if
+        end tell
+        '''
+        result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
+
+        if result.returncode == 0:
+            filepath = result.stdout.strip()
+            if filepath:
+                subprocess.run(["open", filepath])
+                print(f"Opened file: {filepath}")
+            else:
+                print("No file selected in Finder.")
+        else:
+            print("Error getting file path from Finder.")
+
     def scrollHorizontal():
         """scrolls on screen horizontally."""
         pyautogui.keyDown('shift')
@@ -430,54 +493,72 @@ class Controller:
             else:
                 Controller.prevpinchlv = lvx
                 Controller.framecount = 0
-
-    def handle_controls(gesture, hand_result):  
+    
+    @staticmethod
+    def handle_controls(gesture_name, hand_result):  
         """Impliments all gesture functionality."""      
+
         x,y = None,None
-        if gesture != Gest.PALM :
+        if gesture_name != Gest.PALM :
             x,y = Controller.get_position(hand_result)
         
         # flag reset
-        if gesture != Gest.FIST and Controller.grabflag:
+        if gesture_name != Gest.FIST and Controller.grabflag:
             Controller.grabflag = False
             pyautogui.mouseUp(button = "left")
 
-        if gesture != Gest.PINCH_MAJOR and Controller.pinchmajorflag:
+        if gesture_name != Gest.PINCH_MAJOR and Controller.pinchmajorflag:
             Controller.pinchmajorflag = False
 
-        if gesture != Gest.PINCH_MINOR and Controller.pinchminorflag:
+        if gesture_name != Gest.PINCH_MINOR and Controller.pinchminorflag:
             Controller.pinchminorflag = False
 
         # implementation
-        if gesture == Gest.V_GEST:
+        if gesture_name == Gest.V_GEST:
             Controller.flag = True
             pyautogui.moveTo(x, y, duration = 0.1)
 
-        elif gesture == Gest.FIST:
-            if not Controller.grabflag : 
-                Controller.grabflag = True
-                pyautogui.mouseDown(button = "left")
-            pyautogui.moveTo(x, y, duration = 0.1)
+        # You can map gestures to actions here
+        if gesture_name == "increase_volume":
+            Controller.changesystemvolume()
+        elif gesture_name == "increase_brightness":
+            Controller.changesystembrightness()
 
-        elif gesture == Gest.MID and Controller.flag:
+        elif gesture_name == Gest.FIST:
+            if not Controller.grabflag: 
+                Controller.grabflag = True
+                print("[FIST] Mouse down")
+            print(f"[FIST] Dragging to: ({x}, {y})")
+            Controller.mac_mouse_drag(x, y)
+
+
+        elif gesture_name == Gest.PALM:
+            if Controller.grabflag:
+                Controller.grabflag = False
+                print("[PALM] Mouse up")
+                event = CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, (x, y), kCGMouseButtonLeft)
+                CGEventPost(kCGHIDEventTap, event)
+
+
+        elif gesture_name == Gest.MID and Controller.flag:
             pyautogui.click()
             Controller.flag = False
 
-        elif gesture == Gest.INDEX and Controller.flag:
+        elif gesture_name == Gest.INDEX and Controller.flag:
             pyautogui.click(button='right')
             Controller.flag = False
 
-        elif gesture == Gest.TWO_FINGER_CLOSED and Controller.flag:
-            pyautogui.doubleClick()
+        elif gesture_name == Gest.TWO_FINGER_CLOSED and Controller.flag:
+            Controller.mac_open_selected_finder_item()
             Controller.flag = False
 
-        elif gesture == Gest.PINCH_MINOR:
+        elif gesture_name == Gest.PINCH_MINOR:
             if Controller.pinchminorflag == False:
                 Controller.pinch_control_init(hand_result)
                 Controller.pinchminorflag = True
             Controller.pinch_control(hand_result,Controller.scrollHorizontal, Controller.scrollVertical)
         
-        elif gesture == Gest.PINCH_MAJOR:
+        elif gesture_name == Gest.PINCH_MAJOR:
             if Controller.pinchmajorflag == False:
                 Controller.pinch_control_init(hand_result)
                 Controller.pinchmajorflag = True
@@ -524,8 +605,10 @@ class GestureController:
     def __init__(self):
         """Initilaizes attributes."""
         GestureController.gc_mode = 1
-        GestureController.cap = cv2.VideoCapture(0)
-        if not self.cap.isOpened():
+        GestureController.cap = cv2.VideoCapture(1)
+        self.last_click_time = 0
+        self.double_click_interval = 0.3
+        if not GestureController.cap.isOpened():
             print("Error: Could not open webcam.")
             exit()
         else:
@@ -611,7 +694,12 @@ class GestureController:
                         mp_drawing.draw_landmarks(image, hand_landmarks, mp_hands.HAND_CONNECTIONS)
                 else:
                     Controller.prev_hand = None
-                cv2.imshow('Gesture Controller', image)
+                try:
+                    if image is not None:
+                        cv2.imshow('Gesture Controller', image)
+                        cv2.waitKey(1)
+                except cv2.error as e:
+                    print(f"[OpenCV Error] Failed to show frame: {e}")
                 if cv2.waitKey(5) & 0xFF == 13:
                     break
         GestureController.cap.release()

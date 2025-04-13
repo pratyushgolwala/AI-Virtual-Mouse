@@ -1,5 +1,4 @@
 import pyttsx3
-import app
 import speech_recognition as sr
 from datetime import date
 import time
@@ -15,16 +14,16 @@ import smtplib
 import wikipedia
 import Gesture_Controller
 #import Gesture_Controller_Gloved as Gesture_Controller
-
+import app
 from threading import Thread
-from pathlib import Path
 
 
 # -------------Object Initialization---------------
 today = date.today()
-recognizer = sr.Recognizer()
+r = sr.Recognizer()
 keyboard = Controller()
-engine = pyttsx3.init('nsss')
+engine = pyttsx3.init()
+engine = pyttsx3.init()
 voices = engine.getProperty('voices')
 engine.setProperty('voice', voices[0].id)
 
@@ -36,10 +35,7 @@ is_awake = True  #Bot status
 
 # ------------------Functions----------------------
 def reply(audio):
-    try:
-        app.ChatBot.addAppMsg(audio)
-    except AttributeError:
-        print("Error: ChatBot instance is not initialized.")
+    app.ChatBot.addAppMsg(audio)
 
     print(audio)
     engine.say(audio)
@@ -60,29 +56,18 @@ def wish():
 
 # Set Microphone parameters
 with sr.Microphone() as source:
-        # r.energy_threshold = 500 
-        # r.dynamic_energy_threshold = False
-        with sr.Microphone() as source:
-            print("Listening...")
-            audio = recognizer.listen(source)
-
-try:
-    command = recognizer.recognize_google(audio)
-    print(f"You said: {command}")
-except sr.UnknownValueError:
-    print("Sorry, I couldn't understand that.")
-except sr.RequestError:
-    print("Could not request results, please check your internet connection.")
+        r.energy_threshold = 500 
+        r.dynamic_energy_threshold = False
 
 # Audio to String
 def record_audio():
     with sr.Microphone() as source:
-        r = sr.Recognizer()
+        r.pause_threshold = 0.8
         voice_data = ''
         audio = r.listen(source, phrase_time_limit=5)
 
         try:
-           return r.recognize_google(audio).lower()
+            voice_data = r.recognize_google(audio)
         except sr.RequestError:
             reply('Sorry my Service is down. Plz check your Internet connection')
         except sr.UnknownValueError:
@@ -145,9 +130,8 @@ def respond(voice_data):
         if Gesture_Controller.GestureController.gc_mode:
             Gesture_Controller.GestureController.gc_mode = 0
         app.ChatBot.close()
-        reply("Exit Successful")
-        return
-
+        #sys.exit() always raises SystemExit, Handle it in main loop
+        sys.exit()
         
     
     # DYNAMIC CONTROLS
@@ -182,7 +166,7 @@ def respond(voice_data):
     # File Navigation (Default Folder set to C://)
     elif 'list' in voice_data:
         counter = 0
-        path = str(Path.home())
+        path = 'C://'
         files = listdir(path)
         filestr = ""
         for f in files:
@@ -233,64 +217,35 @@ def respond(voice_data):
     else: 
         reply('I am not functioned to do this !')
 
-# # ------------------Driver Code--------------------
-
-# t1 = Thread(target = app.ChatBot.start)
-# t1.start()
-
-# # Lock main thread until Chatbot has started
-# while not app.ChatBot.started:
-#     time.sleep(0.5)
-
-# wish()
-# voice_data = None
-# while True:
-#     if app.ChatBot.isUserInput():
-#         #take input from GUI
-#         voice_data = app.ChatBot.popUserInput()
-#     else:
-#         #take input from Voice
-#         voice_data = record_audio()
-
-#     #process voice_data
-#     if 'proton' in voice_data:
-#         try:
-#             #Handle sys.exit()
-#             respond(voice_data)
-#         except SystemExit:
-#             reply("Exit Successfull")
-#             break
-#         except:
-#             #some other exception got raised
-#             print("EXCEPTION raised while closing.") 
-#             break
-        
-
 # ------------------Driver Code--------------------
 
-t1 = Thread(target=app.ChatBot.start)
+t1 = Thread(target = app.ChatBot.start)
 t1.start()
 
 # Lock main thread until Chatbot has started
 while not app.ChatBot.started:
     time.sleep(0.5)
 
-print("Voice Assistant is ready!")
 wish()
-
+voice_data = None
 while True:
     if app.ChatBot.isUserInput():
+        #take input from GUI
         voice_data = app.ChatBot.popUserInput()
     else:
+        #take input from Voice
         voice_data = record_audio()
 
+    #process voice_data
     if 'proton' in voice_data:
         try:
+            #Handle sys.exit()
             respond(voice_data)
         except SystemExit:
-            reply("Exit Successful")
+            reply("Exit Successfull")
             break
-        except Exception as e:
-            print(f"EXCEPTION raised while closing: {e}")
+        except:
+            #some other exception got raised
+            print("EXCEPTION raised while closing.") 
             break
-
+        

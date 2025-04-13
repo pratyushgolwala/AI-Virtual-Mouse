@@ -16,33 +16,39 @@ class Marker:
         self.marker_x2y = 1 # width:height ratio
         self.mtx, self.dist = Marker.calibrate()
     
+    @staticmethod
     def calibrate():
         criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
-        objp = np.zeros((6*7,3), np.float32)
-        objp[:,:2] = np.mgrid[0:7,0:6].T.reshape(-1,2)
-        objpoints = [] # 3d point in real world space
-        imgpoints = [] # 2d points in image plane.
+        objp = np.zeros((6*7, 3), np.float32)
+        objp[:, :2] = np.mgrid[0:7, 0:6].T.reshape(-1, 2)
+        objpoints = []
+        imgpoints = []
         path = os.path.dirname(os.path.abspath(__file__))
-        p1 = path + r'\calib_images\checkerboard\*.jpg'
+        p1 = os.path.join(path, 'calib_images', 'checkerboard', '*.jpg')
         images = glob.glob(p1)
+
+        gray = None  # initialize gray
         for fname in images:
             img = cv2.imread(fname)
             if img is None:
-                print(f"Error: Could not load image {image_path}")
+                print(f"Error: Could not load image {fname}")
                 continue
-            gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
-            ret, corners = cv2.findChessboardCorners(gray, (7,6),None)
-            if ret == True:
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            ret, corners = cv2.findChessboardCorners(gray, (7, 6), None)
+            if ret:
                 objpoints.append(objp)
-                corners2 = cv2.cornerSubPix(gray,corners,(11,11),(-1,-1),criteria)
+                corners2 = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)
                 imgpoints.append(corners2)
-                img = cv2.drawChessboardCorners(img, (7,6), corners2,ret)
-                
-        ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)
-        
-        #mtx = [[534.34144579,0.0,339.15527836],[0.0,534.68425882,233.84359493],[0.0,0.0,1.0]]
-        #dist = [[-2.88320983e-01, 5.41079685e-02, 1.73501622e-03, -2.61333895e-04, 2.04110465e-01]]
+                cv2.drawChessboardCorners(img, (7, 6), corners2, ret)
+
+        if gray is None or not objpoints:
+            raise ValueError("No valid calibration images found. Ensure checkerboard images are present in the correct directory.")
+
+        ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(
+            objpoints, imgpoints, gray.shape[::-1], None, None
+        )
         return mtx, dist
+
     
     def detect(self, frame):
         gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
