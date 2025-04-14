@@ -605,7 +605,7 @@ class GestureController:
     def __init__(self):
         """Initilaizes attributes."""
         GestureController.gc_mode = 1
-        GestureController.cap = cv2.VideoCapture(1)
+        GestureController.cap = cv2.VideoCapture(0)
         self.last_click_time = 0
         self.double_click_interval = 0.3
         if not GestureController.cap.isOpened():
