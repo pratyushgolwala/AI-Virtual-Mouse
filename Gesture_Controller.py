@@ -605,7 +605,9 @@ class GestureController:
     def __init__(self):
         """Initilaizes attributes."""
         GestureController.gc_mode = 1
-        GestureController.cap = cv2.VideoCapture(0)
+        GestureController.cap = cv2.VideoCapture(1)
+        desired_width = 80
+        desired_height = 60
         self.last_click_time = 0
         self.double_click_interval = 0.3
         if not GestureController.cap.isOpened():
@@ -614,8 +616,12 @@ class GestureController:
         else:
             print("Webcam successfully accessed.")
 
-        GestureController.CAM_HEIGHT = GestureController.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-        GestureController.CAM_WIDTH = GestureController.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        GestureController.cap.set(cv2.CAP_PROP_FRAME_WIDTH, desired_width)
+        GestureController.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, desired_height)
+
+        # Update the height and width variables
+        GestureController.CAM_WIDTH = desired_width
+        GestureController.CAM_HEIGHT = desired_height
     
     def classify_hands(results):
         """
@@ -700,8 +706,10 @@ class GestureController:
                         cv2.waitKey(1)
                 except cv2.error as e:
                     print(f"[OpenCV Error] Failed to show frame: {e}")
-                if cv2.waitKey(5) & 0xFF == 13:
+                key = cv2.waitKey(5)
+                if key == 13:  # Enter key
                     break
+
         GestureController.cap.release()
         cv2.destroyAllWindows()
 

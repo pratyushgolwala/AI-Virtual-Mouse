@@ -16,6 +16,8 @@ import Gesture_Controller
 #import Gesture_Controller_Gloved as Gesture_Controller
 import app
 from threading import Thread
+import subprocess
+
 
 
 # -------------Object Initialization---------------
@@ -74,6 +76,10 @@ def record_audio():
             print('cant recognize')
             pass
         return voice_data.lower()
+
+def run_gesture_controller():
+    gc = Gesture_Controller.GestureController()
+    gc.start()
 
 
 # Executes Commands (input: string)
@@ -140,8 +146,7 @@ def respond(voice_data):
             reply('Gesture recognition is already active')
         else:
             gc = Gesture_Controller.GestureController()
-            t = Thread(target = gc.start)
-            t.start()
+            gc.start()  # run in main thread
             reply('Launched Successfully')
 
     elif ('stop gesture recognition' in voice_data) or ('top gesture recognition' in voice_data):
@@ -150,6 +155,19 @@ def respond(voice_data):
             reply('Gesture recognition stopped')
         else:
             reply('Gesture recognition is already inactive')
+
+    elif 'launch air drawing' in voice_data:
+        try:
+            subprocess.Popen(["python3", "AirDrawing.py"])
+            reply("Air Drawing module launched successfully.")
+        except Exception as e:
+            reply(f"Failed to launch Air Drawing: {e}")
+
+    elif 'stop air drawing' in voice_data:
+        os.system("pkill -f AirDrawing.py")  # On macOS/Linux
+        reply("Stopped Air Drawing module.")
+
+
         
     elif 'copy' in voice_data:
         with keyboard.pressed(Key.ctrl):

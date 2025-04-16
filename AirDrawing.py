@@ -21,9 +21,8 @@ cap = cv2.VideoCapture(1)
 # UI layout
 button_width = 120
 button_height = 60
-buttons = ['Blue', 'Red', 'Pen', 'Redo', 'Undo', 'Eraser']
-button_colors = [(255, 0, 0), (0, 0, 255), (0, 0, 0), (80, 80, 80), (50, 50, 50), (128, 128, 128)]
-
+buttons = ['Blue', 'Red', 'Pen', 'Redo', 'Undo', 'Eraser']  # Reordered
+button_colors = [(255, 0, 0), (0, 0, 255), (0, 0, 0), (80, 80, 80), (50, 50, 50), (128, 128, 128)]  # Match new order
 
 # Drawing state
 draw_color = (0, 0, 0)
@@ -60,17 +59,23 @@ def finger_up(hand_landmarks):
     return fingers
 
 def draw_ui(frame):
-    spacing = 30  # Define the spacing for button arrangement
+    spacing = 30
+    total_top_width = 3 * button_width + 2 * spacing
+    start_x_top = (screen_width - total_top_width) // 2
+
     for i, (btn, color) in enumerate(zip(buttons[:3], button_colors[:3])):  # Top row
-        x1 = spacing + i * (button_width + spacing)
+        x1 = start_x_top + i * (button_width + spacing)
         y1 = spacing
         x2 = x1 + button_width
         y2 = y1 + button_height
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, -1)
         cv2.putText(frame, btn, (x1 + 15, y1 + 38), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,255), 2)
 
+    total_bottom_width = 3 * button_width + 2 * spacing
+    start_x_bottom = (screen_width - total_bottom_width) // 2
+
     for i, (btn, color) in enumerate(zip(buttons[3:], button_colors[3:])):  # Bottom row
-        x1 = spacing + i * (button_width + spacing)
+        x1 = start_x_bottom + i * (button_width + spacing)
         y1 = screen_height - spacing - button_height
         x2 = x1 + button_width
         y2 = y1 + button_height
@@ -78,17 +83,23 @@ def draw_ui(frame):
         cv2.putText(frame, btn, (x1 + 15, y1 + 38), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,255), 2)
 
 def check_ui_click(x, y):
-    spacing = 30  # Define the spacing for button arrangement
+    spacing = 30
+    total_top_width = 3 * button_width + 2 * spacing
+    start_x_top = (screen_width - total_top_width) // 2
+
     for i, btn in enumerate(buttons[:3]):  # Top row
-        x1 = spacing + i * (button_width + spacing)
+        x1 = start_x_top + i * (button_width + spacing)
         y1 = spacing
         x2 = x1 + button_width
         y2 = y1 + button_height
         if x1 <= x <= x2 and y1 <= y <= y2:
             return btn
 
+    total_bottom_width = 3 * button_width + 2 * spacing
+    start_x_bottom = (screen_width - total_bottom_width) // 2
+
     for i, btn in enumerate(buttons[3:]):  # Bottom row
-        x1 = spacing + i * (button_width + spacing)
+        x1 = start_x_bottom + i * (button_width + spacing)
         y1 = screen_height - spacing - button_height
         x2 = x1 + button_width
         y2 = y1 + button_height
@@ -96,7 +107,6 @@ def check_ui_click(x, y):
             return btn
 
     return None
-
 
 while cap.isOpened():
     spacing = 30
@@ -132,11 +142,23 @@ while cap.isOpened():
             current_time = time.time()
 
             if selected:
-                cv2.rectangle(canvas, (spacing + buttons.index(selected) * (button_width + spacing),
-                                       spacing),
-                            (spacing + (buttons.index(selected) + 1) * (button_width + spacing), spacing + button_height), (0, 255, 0), 3)
+                # Draw green highlight around selected button
+                if selected in buttons[:3]:
+                    idx = buttons[:3].index(selected)
+                    total_top_width = 3 * button_width + 2 * spacing
+                    start_x = (screen_width - total_top_width) // 2
+                    rect_x1 = start_x + idx * (button_width + spacing)
+                    rect_y1 = spacing
+                else:
+                    idx = buttons[3:].index(selected)
+                    total_bottom_width = 3 * button_width + 2 * spacing
+                    start_x = (screen_width - total_bottom_width) // 2
+                    rect_x1 = start_x + idx * (button_width + spacing)
+                    rect_y1 = screen_height - spacing - button_height
 
-                # Only accept the click if delay passed
+                cv2.rectangle(canvas, (rect_x1, rect_y1), (rect_x1 + button_width, rect_y1 + button_height), (0, 255, 0), 3)
+
+                # Accept click only after cooldown
                 if current_time - last_click_time > click_delay:
                     last_click_time = current_time
 
@@ -148,7 +170,6 @@ while cap.isOpened():
                         draw_color = (255, 0, 0)
                     elif selected == 'Eraser':
                         draw_color = (255, 255, 255)
-                        cv2.line(canvas, (prev_x, prev_y), (x, y), draw_color, 20)
                     elif selected == 'Undo' and undo_stack:
                         redo_stack.append(canvas.copy())
                         canvas = undo_stack.pop()
@@ -157,20 +178,18 @@ while cap.isOpened():
                         canvas = redo_stack.pop()
 
         elif mode == 'DRAW':
-            if mode == 'DRAW':
-                if index_tip.y < middle_tip.y:  # Only draw if index is above middle
-                    if prev_x is not None and prev_y is not None:
-                        undo_stack.append(canvas.copy())
+            if index_tip.y < middle_tip.y:  # Only draw if index is above middle
+                if prev_x is not None and prev_y is not None:
+                    undo_stack.append(canvas.copy())
 
-                        # Increase the radius size if eraser is active
-                        line_thickness = 20 if draw_color == (255, 255, 255) else 4  # Eraser thickness is 20
+                    # Increased thickness for eraser
+                    line_thickness = 30 if draw_color == (255, 255, 255) else 4
+                    cv2.line(canvas, (prev_x, prev_y), (x, y), draw_color, line_thickness)
+                prev_x, prev_y = x, y
+            else:
+                prev_x, prev_y = None, None
 
-                        cv2.line(canvas, (prev_x, prev_y), (x, y), draw_color, line_thickness)
-                    prev_x, prev_y = x, y
-                else:
-                    prev_x, prev_y = None, None
-
-    # Embed webcam preview on the right side
+    # Embed webcam preview on right side
     webcam_small = cv2.resize(frame, (200, 150))
     canvas[10:160, screen_width - 210:screen_width - 10] = webcam_small
 
